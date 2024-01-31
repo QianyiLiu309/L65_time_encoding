@@ -1,0 +1,6 @@
+[submodule "TGB"]
+	path = TGB
+	url = https://github.com/QianyiLiu309/TGB.git
+[submodule "TGB_Baselines"]
+	path = TGB_Baselines
+	url = https://github.com/zzbuzzard/TGB_Baselines.git
