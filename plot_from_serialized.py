@@ -43,7 +43,8 @@ if __name__ == "__main__":
         d = np.load(f, allow_pickle=True).tolist()
 
         times, probs, real_times = d[sd]
-        plot(times, probs, title=args.title + f" src={sd[0]}, dst={sd[1]}", label=f)
+        name = f.split("/")[-1].split(".npy")[0]
+        plot(times, probs, title=args.title + f" src={sd[0]}, dst={sd[1]}", label=name)
 
     plot_real(real_times)
 
