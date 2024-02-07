@@ -6,7 +6,7 @@ import random
 
 def plot(all_times, all_probs, title="", label=""):
     plt.title(title)
-    plt.plot(all_times, all_probs, label=label)
+    plt.plot(all_times, all_probs, label=label, alpha=0.7, linewidth=1.5)
     plt.xlabel("Time")
     plt.ylabel("Predicted link probability")
     plt.ylim(-0.01, 1.01)
@@ -30,11 +30,17 @@ if __name__ == "__main__":
     sd = args.src, args.dst
 
     plt.rcParams["figure.figsize"] = (12, 6)
-
+    
+    shared_keys = None
+    
+    if sd[0] is None:
+        for f in args.files:
+            d = set(np.load(f, allow_pickle=True).tolist())
+            shared_keys = d if shared_keys is None else shared_keys.intersection(d)
+        sd = random.choice(list(shared_keys))
+        
     for f in args.files:
         d = np.load(f, allow_pickle=True).tolist()
-        if sd[0] is None:
-            sd = random.choice(list(d.keys()))
 
         times, probs, real_times = d[sd]
         plot(times, probs, title=args.title + f" src={sd[0]}, dst={sd[1]}", label=f)
