@@ -37,8 +37,9 @@ if __name__ == "__main__":
             sd = random.choice(list(d.keys()))
 
         times, probs, real_times = d[sd]
-        plot(times, probs, title=args.title + f" src={sd[0]}, dst={sd[1]}")
+        plot(times, probs, title=args.title + f" src={sd[0]}, dst={sd[1]}", label=f)
 
     plot_real(real_times)
 
+    plt.legend()
     plt.show()
