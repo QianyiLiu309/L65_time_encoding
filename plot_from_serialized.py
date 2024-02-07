@@ -15,7 +15,7 @@ def plot(all_times, all_probs, title="", label=""):
 def plot_real(real_times):
     # plt.scatter(x=real_times, y=[1]*len(real_times), marker='x')
     for etime in real_times:
-        plt.axvline(x=etime, color="red", ls="--", linewidth=6, alpha=0.8)
+        plt.axvline(x=etime, color="red", ls="--", linewidth=1, alpha=0.8)
 
 
 if __name__ == "__main__":
