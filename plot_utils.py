@@ -1,8 +1,49 @@
 from tgb.linkproppred.dataset_pyg import PyGLinkPropPredDataset
 import numpy as np
+from numpy import ndarray
 
 
-def get_temporal_edge_times(dataset: PyGLinkPropPredDataset, src: int, dst: int, num_hops: int, mask=None):
+def calculate_average_step_difference(
+    timestamps_by_hops: list[ndarray],
+    preds: ndarray,
+    pred_timestamps: ndarray,
+) -> float:
+    aggregated_timestamps = np.concatenate(timestamps_by_hops, axis=0)
+    print(f"Shape of aggregated_timestamps: {aggregated_timestamps.shape}")
+    np.sort(aggregated_timestamps, axis=0)
+
+    index = 0
+    lower_bound = aggregated_timestamps[index]
+    upper_bound = aggregated_timestamps[index + 1]
+
+    print(f"Number of predictions: {len(preds)}")
+    pred_index = 0
+
+    accumulated_step_difference = 0
+    while pred_timestamps[pred_index] <= lower_bound:
+        pred_index += 1
+
+    while index < len(aggregated_timestamps) - 1:
+        # start from the second after the lower bound event
+        if pred_timestamps[pred_index] == lower_bound:
+            pred_index += 1
+
+        while pred_timestamps[pred_index] <= upper_bound:
+            accumulated_step_difference += np.abs(
+                preds[pred_index] - preds[pred_index - 1]
+            )
+            pred_index += 1
+
+        index += 1
+        lower_bound = upper_bound
+        upper_bound = aggregated_timestamps[index]
+
+    return accumulated_step_difference / (len(preds) - 1)
+
+
+def get_temporal_edge_times(
+    dataset: PyGLinkPropPredDataset, src: int, dst: int, num_hops: int, mask=None
+):
     # Returns [time tensor 0-hop, time tensor 1-hop, ...]
     # Note: treats the graph as undirectional
     # Note: assumes no self-edges
@@ -32,7 +73,9 @@ def get_temporal_edge_times(dataset: PyGLinkPropPredDataset, src: int, dst: int,
 
     hop0 = edge(src, dst)
     frontier = get_nodes(hop0)  # just src, dst
-    prev_hop = set(frontier.tolist())  # contains nodes which we are no longer interested in
+    prev_hop = set(
+        frontier.tolist()
+    )  # contains nodes which we are no longer interested in
 
     hops = [hop0]
 
@@ -43,7 +86,9 @@ def get_temporal_edge_times(dataset: PyGLinkPropPredDataset, src: int, dst: int,
             edge_map = get_conns(u)
 
             # Get all adjacent to u which are not in a previous hop and are not equal to u
-            adj_list = [i for i in get_nodes(edge_map).tolist() if i!=u and i not in prev_hop]
+            adj_list = [
+                i for i in get_nodes(edge_map).tolist() if i != u and i not in prev_hop
+            ]
 
             # Union hopi with the hops from u to next nodes
             for v in adj_list:
@@ -60,4 +105,3 @@ def get_temporal_edge_times(dataset: PyGLinkPropPredDataset, src: int, dst: int,
 
     times = [time_list[hop] for hop in hops]
     return times
-
