@@ -13,38 +13,50 @@ def calculate_average_step_difference(
         timestamps_by_hops[: hop_threshold + 1], axis=0
     )
     print(f"Shape of aggregated_timestamps: {aggregated_timestamps.shape}")
-    np.sort(aggregated_timestamps, axis=0)
+    aggregated_timestamps = np.sort(aggregated_timestamps, axis=0)
 
-    index = 0
-    lower_bound = aggregated_timestamps[index]
-    upper_bound = aggregated_timestamps[index + 1]
+    event_index = 0
+    lower_bound = aggregated_timestamps[event_index]
+    upper_bound = aggregated_timestamps[event_index + 1]
 
     print(f"Number of predictions: {len(preds)}")
     pred_index = 0
 
     accumulated_step_difference = 0
-    while pred_timestamps[pred_index] <= lower_bound:
+
+    while pred_timestamps[pred_index] < lower_bound:
         pred_index += 1
+    assert pred_timestamps[pred_index] == lower_bound
 
     skipped_step_cnt = 0
+    processed_step_cnt = 0
 
-    while index < len(aggregated_timestamps) - 1:
+    while event_index < len(aggregated_timestamps) - 1:
+        lower_bound = aggregated_timestamps[event_index]
+        upper_bound = aggregated_timestamps[event_index + 1]
         # start from the second after the lower bound event
         if pred_timestamps[pred_index] == lower_bound:
+            # skip because this update is directly caused by the event
             pred_index += 1
             skipped_step_cnt += 1
 
-        while pred_timestamps[pred_index] <= upper_bound:
+        while pred_timestamps[pred_index] < upper_bound:
+            if pred_index + 1 == len(preds):
+                break
             accumulated_step_difference += np.abs(
-                preds[pred_index] - preds[pred_index - 1]
+                preds[pred_index + 1] - preds[pred_index]
             )
             pred_index += 1
+            processed_step_cnt += 1
 
-        index += 1
-        lower_bound = upper_bound
-        upper_bound = aggregated_timestamps[index]
+        event_index += 1
 
-    return accumulated_step_difference / (len(preds) - 1 - skipped_step_cnt)
+    print(
+        f"Total steps between first and last event: {aggregated_timestamps[-1] - aggregated_timestamps[0]}"
+    )
+    print(f"Skipped step count: {skipped_step_cnt}")
+    print(f"Processed step count: {processed_step_cnt}")
+    return accumulated_step_difference / processed_step_cnt
 
 
 def get_temporal_edge_times(
