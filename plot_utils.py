@@ -7,8 +7,11 @@ def calculate_average_step_difference(
     timestamps_by_hops: list[ndarray],
     preds: ndarray,
     pred_timestamps: ndarray,
+    hop_threshold: int = 1,
 ) -> float:
-    aggregated_timestamps = np.concatenate(timestamps_by_hops, axis=0)
+    aggregated_timestamps = np.concatenate(
+        timestamps_by_hops[: hop_threshold + 1], axis=0
+    )
     print(f"Shape of aggregated_timestamps: {aggregated_timestamps.shape}")
     np.sort(aggregated_timestamps, axis=0)
 
