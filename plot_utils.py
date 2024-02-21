@@ -3,6 +3,36 @@ import numpy as np
 from numpy import ndarray
 
 
+def calculate_average_step_difference_full_range(
+    timestamps_by_hops: list[ndarray],
+    preds: ndarray,
+    pred_timestamps: ndarray,
+    hop_threshold: int = 1,
+) -> float:
+    aggregated_timestamps = np.concatenate(
+        timestamps_by_hops[: hop_threshold + 1], axis=0
+    )
+    print("Full range: ")
+    # print(f"Shape of aggregated_timestamps: {aggregated_timestamps.shape}")
+    aggregated_timestamps = np.sort(aggregated_timestamps, axis=0)
+
+    time_to_preds = {t: v for t, v in zip(pred_timestamps, preds)}
+
+    aggregated_step_diff = np.sum(np.abs(preds[1:] - preds[:-1]))
+    total_step_cnt = len(preds) - 1
+
+    for t in aggregated_timestamps:
+        assert t in time_to_preds
+        total_step_cnt -= 1
+        aggregated_step_diff -= np.abs(time_to_preds[t + 1] - time_to_preds[t])
+
+    print(
+        f"Total steps between first and last pred: {pred_timestamps[-1] - pred_timestamps[0]}"
+    )
+    print(f"Total step count: {total_step_cnt}")
+    return aggregated_step_diff / total_step_cnt
+
+
 def calculate_average_step_difference(
     timestamps_by_hops: list[ndarray],
     preds: ndarray,
