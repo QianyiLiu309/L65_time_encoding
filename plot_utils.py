@@ -23,10 +23,13 @@ def calculate_average_step_difference(
     while pred_timestamps[pred_index] <= lower_bound:
         pred_index += 1
 
+    skipped_step_cnt = 0
+
     while index < len(aggregated_timestamps) - 1:
         # start from the second after the lower bound event
         if pred_timestamps[pred_index] == lower_bound:
             pred_index += 1
+            skipped_step_cnt += 1
 
         while pred_timestamps[pred_index] <= upper_bound:
             accumulated_step_difference += np.abs(
@@ -38,7 +41,7 @@ def calculate_average_step_difference(
         lower_bound = upper_bound
         upper_bound = aggregated_timestamps[index]
 
-    return accumulated_step_difference / (len(preds) - 1)
+    return accumulated_step_difference / (len(preds) - 1 - skipped_step_cnt)
 
 
 def get_temporal_edge_times(
