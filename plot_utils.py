@@ -1,6 +1,7 @@
 from tgb.linkproppred.dataset_pyg import PyGLinkPropPredDataset
 import numpy as np
 from numpy import ndarray
+from typing import Tuple
 
 
 def calculate_average_step_difference_full_range(
@@ -91,7 +92,7 @@ def calculate_average_step_difference(
 
 def total_variation_per_unit_time(timestamps_by_hops: list[ndarray],
                                   preds: ndarray,
-                                  pred_timestamps: ndarray) -> float:
+                                  pred_timestamps: ndarray) -> Tuple[float, float]:
     # Ensure sorted chronologically
     sort_inds = np.argsort(pred_timestamps)
     preds = preds[sort_inds]
@@ -110,9 +111,7 @@ def total_variation_per_unit_time(timestamps_by_hops: list[ndarray],
         diffs -= np.sum(np.abs(preds[inds + 1] - preds[inds]))  # discount all inds->inds+1 probability jumps
         time_length -= np.sum(pred_timestamps[inds + 1] - pred_timestamps[inds])  # and also remove these time periods
 
-    print("Total considered time:", time_length)
-
-    return (diffs / time_length).item()
+    return diffs.item(), (diffs / time_length).item()
 
 
 def get_temporal_edge_times(
