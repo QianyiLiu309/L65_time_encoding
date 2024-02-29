@@ -89,6 +89,32 @@ def calculate_average_step_difference(
     return accumulated_step_difference / processed_step_cnt
 
 
+def total_variation_per_unit_time(timestamps_by_hops: list[ndarray],
+                                  preds: ndarray,
+                                  pred_timestamps: ndarray) -> float:
+    # Ensure sorted chronologically
+    sort_inds = np.argsort(pred_timestamps)
+    preds = preds[sort_inds]
+    pred_timestamps = pred_timestamps[sort_inds]
+
+    # Calculate total variation over the whole period
+    diffs = np.sum(np.abs(preds[1:] - preds[:-1]))
+    time_length = float(pred_timestamps[-1] - pred_timestamps[0])
+
+    # Discount variation due to events at different hop levels
+    for ts in timestamps_by_hops:
+        # inds = the indices of the measurements taken before (or at the same time as) the event
+        #  inds+1 = the first indices where the change has taken effect
+        # We therefore discount the (inds -> inds+1) edges
+        inds = np.searchsorted(pred_timestamps, ts, side='right') - 1
+        diffs -= np.sum(np.abs(preds[inds + 1] - preds[inds]))  # discount all inds->inds+1 probability jumps
+        time_length -= np.sum(pred_timestamps[inds + 1] - pred_timestamps[inds])  # and also remove these time periods
+
+    print("Total considered time:", time_length)
+
+    return (diffs / time_length).item()
+
+
 def get_temporal_edge_times(
     dataset: PyGLinkPropPredDataset, src: int, dst: int, num_hops: int, mask=None
 ):
