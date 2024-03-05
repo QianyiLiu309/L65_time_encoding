@@ -90,9 +90,9 @@ def calculate_average_step_difference(
     return accumulated_step_difference / processed_step_cnt
 
 
-def total_variation_per_unit_time(timestamps_by_hops: list[ndarray],
-                                  preds: ndarray,
-                                  pred_timestamps: ndarray) -> Tuple[float, float]:
+def total_variation_per_unit_time(
+    timestamps_by_hops: list[ndarray], preds: ndarray, pred_timestamps: ndarray
+) -> Tuple[float, float]:
     # Ensure sorted chronologically
     sort_inds = np.argsort(pred_timestamps)
     preds = preds[sort_inds]
@@ -107,9 +107,13 @@ def total_variation_per_unit_time(timestamps_by_hops: list[ndarray],
         # inds = the indices of the measurements taken before (or at the same time as) the event
         #  inds+1 = the first indices where the change has taken effect
         # We therefore discount the (inds -> inds+1) edges
-        inds = np.searchsorted(pred_timestamps, ts, side='right') - 1
-        diffs -= np.sum(np.abs(preds[inds + 1] - preds[inds]))  # discount all inds->inds+1 probability jumps
-        time_length -= np.sum(pred_timestamps[inds + 1] - pred_timestamps[inds])  # and also remove these time periods
+        inds = np.searchsorted(pred_timestamps, ts, side="right") - 1
+        diffs -= np.sum(
+            np.abs(preds[inds + 1] - preds[inds])
+        )  # discount all inds->inds+1 probability jumps
+        time_length -= np.sum(
+            pred_timestamps[inds + 1] - pred_timestamps[inds]
+        )  # and also remove these time periods
 
     return diffs.item(), (diffs / time_length).item()
 

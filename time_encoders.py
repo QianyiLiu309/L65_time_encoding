@@ -33,7 +33,7 @@ def get_time_encoder(time_encoder: str, out_channels: int, mul: float = 1) -> Ti
         return GaussianTimeEncoder(out_channels, mul=mul)
     elif time_encoder == "graph_mixer":
         return FixedCosTimeEncoder(out_channels, parameter_requires_grad=False)
-    elif time_encoder == "partial":
+    elif time_encoder == "scaled_fixed":
         return ScaledFixedCosTimeEncoder(out_channels)
     else:
         raise NotImplementedError(f"Unknown time encoder '{time_encoder}'")
@@ -41,6 +41,7 @@ def get_time_encoder(time_encoder: str, out_channels: int, mul: float = 1) -> Ti
 
 class CosTimeEncoder(nn.Module, TimeEncoder):
     """Learnable cosine time encoder"""
+
     def __init__(self, out_channels: int, mul: float = 1):
         super().__init__()
         self.out_channels = out_channels
@@ -57,6 +58,7 @@ class CosTimeEncoder(nn.Module, TimeEncoder):
 
 class ExpTimeEncoder(nn.Module, TimeEncoder):
     """Learnable exponential time encoder"""
+
     def __init__(self, out_channels: int, mul: float = 1):
         super().__init__()
         self.out_channels = out_channels
@@ -150,7 +152,7 @@ class ScaledFixedCosTimeEncoder(nn.Module, TimeEncoder):
         # trainable parameters for time encoding
         self.frequencies = Parameter(
             torch.from_numpy(
-                1 / 10 ** np.linspace(-2, 7, out_channels, dtype=np.float32)
+                1 / 10 ** np.linspace(0, 9, out_channels, dtype=np.float32)
             ).unsqueeze(0)
         )
         self.frequencies.requires_grad = False
