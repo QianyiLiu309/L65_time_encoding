@@ -195,10 +195,11 @@ class ScaledFixedCosTimeEncoder(nn.Module, TimeEncoder):
         # Tensor, shape (batch_size, seq_len, 1)
         timestamps = timestamps.unsqueeze(-1)
 
-        output = torch.matmul(timestamps, self.lin.weight.t())
+        multiplier = torch.exp(-self.lin.weight**2)
+        output = torch.matmul(timestamps, multiplier.t())
         if output.shape[0] != 0:
             # TODO handle var shape
-            output = output * torch.exp(-self.frequencies**2)
+            output = output * self.frequencies
         output = output + self.lin.bias
         output = torch.cos(output)
 
