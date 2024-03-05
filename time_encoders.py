@@ -148,8 +148,8 @@ class FixedCosTimeEncoder(nn.Module, TimeEncoder):
 
     def forward(self, timestamps: torch.Tensor):
         """
-        compute time encodings of time in timestampss
-        :param timestampss: Tensor, shape (batch_size, seq_len)
+        compute time encodings of time in timestamps
+        :param timestamps: Tensor, shape (batch_size, seq_len)
         :return:
         """
         # Tensor, shape (batch_size, seq_len, 1)
@@ -186,16 +186,16 @@ class ScaledFixedCosTimeEncoder(nn.Module, TimeEncoder):
     def reset_parameters(self):
         self.lin.reset_parameters()
 
-    def forward(self, timestampss: torch.Tensor):
+    def forward(self, timestamps: torch.Tensor):
         """
-        compute time encodings of time in timestampss
-        :param timestampss: Tensor, shape (batch_size, seq_len)
+        compute time encodings of time in timestamps
+        :param timestamps: Tensor, shape (batch_size, seq_len)
         :return:
         """
         # Tensor, shape (batch_size, seq_len, 1)
-        timestampss = timestampss.unsqueeze(-1)
+        timestamps = timestamps.unsqueeze(-1)
 
-        output = torch.matmul(timestampss, self.lin.weight.t())
+        output = torch.matmul(timestamps, self.lin.weight.t())
         if output.shape[0] != 0:
             # TODO handle var shape
             output = output * self.frequencies
