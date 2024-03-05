@@ -24,7 +24,9 @@ class TimeEncoder(ABC):
         raise NotImplementedError
 
 
-def get_time_encoder(time_encoder: str, out_channels: int, mul: float = 1) -> TimeEncoder:
+def get_time_encoder(
+    time_encoder: str, out_channels: int, mul: float = 1
+) -> TimeEncoder:
     if time_encoder == "learned_cos":
         return CosTimeEncoder(out_channels, mul=mul)
     elif time_encoder == "learned_exp":
@@ -35,6 +37,8 @@ def get_time_encoder(time_encoder: str, out_channels: int, mul: float = 1) -> Ti
         return FixedCosTimeEncoder(out_channels, parameter_requires_grad=False)
     elif time_encoder == "scaled_fixed":
         return ScaledFixedCosTimeEncoder(out_channels)
+    elif time_encoder == "learned_cos_learned_multiplier":
+        return CosTimeEncoderWithLearnedMultiplier(out_channels, mul=mul)
     else:
         raise NotImplementedError(f"Unknown time encoder '{time_encoder}'")
 
@@ -50,6 +54,26 @@ class CosTimeEncoder(nn.Module, TimeEncoder):
 
     def reset_parameters(self):
         self.lin.reset_parameters()
+
+    def forward(self, timestamps: Tensor) -> Tensor:
+        timestamps = timestamps * self.mul
+        return self.lin(timestamps.unsqueeze(-1)).cos()
+
+
+class CosTimeEncoderWithLearnedMultiplier(nn.Module, TimeEncoder):
+    """Learnable cosine time encoder"""
+
+    def __init__(self, out_channels: int, mul: float = 1):
+        super().__init__()
+        self.out_channels = out_channels
+        self.lin = Linear(1, out_channels)
+
+        self.init_mul = mul
+        self.mul = Parameter(torch.tensor(mul))
+
+    def reset_parameters(self):
+        self.lin.reset_parameters()
+        self.mul.data.fill_(self.init_mul)
 
     def forward(self, timestamps: Tensor) -> Tensor:
         timestamps = timestamps * self.mul
