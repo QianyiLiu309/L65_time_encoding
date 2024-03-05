@@ -9,11 +9,22 @@ import torch
 from torch import Tensor
 from torch import nn
 from torch.nn import Linear, Parameter
+from abc import ABC, abstractmethod
 
 import numpy as np
 
 
-def get_time_encoder(time_encoder: str, out_channels: int, mul: float = 1):
+class TimeEncoder(ABC):
+    @abstractmethod
+    def reset_parameters(self):
+        raise NotImplementedError
+
+    @abstractmethod
+    def forward(self, timestamps: Tensor) -> Tensor:
+        raise NotImplementedError
+
+
+def get_time_encoder(time_encoder: str, out_channels: int, mul: float = 1) -> TimeEncoder:
     if time_encoder == "learned_cos":
         return CosTimeEncoder(out_channels, mul=mul)
     elif time_encoder == "learned_exp":
@@ -28,7 +39,7 @@ def get_time_encoder(time_encoder: str, out_channels: int, mul: float = 1):
         raise NotImplementedError(f"Unknown time encoder '{time_encoder}'")
 
 
-class CosTimeEncoder(nn.Module):
+class CosTimeEncoder(nn.Module, TimeEncoder):
     """Learnable cosine time encoder"""
     def __init__(self, out_channels: int, mul: float = 1):
         super().__init__()
@@ -39,12 +50,12 @@ class CosTimeEncoder(nn.Module):
     def reset_parameters(self):
         self.lin.reset_parameters()
 
-    def forward(self, timestamp: Tensor) -> Tensor:
-        timestamp = timestamp * self.mul
-        return self.lin(timestamp.unsqueeze(-1)).cos()
+    def forward(self, timestamps: Tensor) -> Tensor:
+        timestamps = timestamps * self.mul
+        return self.lin(timestamps.unsqueeze(-1)).cos()
 
 
-class ExpTimeEncoder(nn.Module):
+class ExpTimeEncoder(nn.Module, TimeEncoder):
     """Learnable exponential time encoder"""
     def __init__(self, out_channels: int, mul: float = 1):
         super().__init__()
@@ -55,14 +66,14 @@ class ExpTimeEncoder(nn.Module):
     def reset_parameters(self):
         self.lin.reset_parameters()
 
-    def forward(self, timestamp: Tensor) -> Tensor:
-        timestamp = timestamp * self.mul
-        # [w1 timestamp, w2 timestamp, w3 timestamp, ...]
-        xs = self.lin(timestamp.unsqueeze(-1)).abs()
+    def forward(self, timestamps: Tensor) -> Tensor:
+        timestamps = timestamps * self.mul
+        # [w1 timestamps, w2 timestamps, w3 timestamps, ...]
+        xs = self.lin(timestamps.unsqueeze(-1)).abs()
         return torch.exp(-xs)
 
 
-class GaussianTimeEncoder(nn.Module):
+class GaussianTimeEncoder(nn.Module, TimeEncoder):
     """Learnable Gaussian time encoder"""
 
     def __init__(self, out_channels: int, mul: float = 1):
@@ -74,12 +85,12 @@ class GaussianTimeEncoder(nn.Module):
     def reset_parameters(self):
         self.lin.reset_parameters()
 
-    def forward(self, timestamp: Tensor) -> Tensor:
-        timestamp = timestamp * self.mul
-        return torch.exp(-self.lin(timestamp.unsqueeze(-1)) ** 2)
+    def forward(self, timestamps: Tensor) -> Tensor:
+        timestamps = timestamps * self.mul
+        return torch.exp(-self.lin(timestamps.unsqueeze(-1)) ** 2)
 
 
-class FixedCosTimeEncoder(nn.Module):
+class FixedCosTimeEncoder(nn.Module, TimeEncoder):
     """Cosine time encoder with non-learnable exponential range of frequencies"""
 
     def __init__(self, out_channels: int, parameter_requires_grad: bool = True):
@@ -109,22 +120,22 @@ class FixedCosTimeEncoder(nn.Module):
     def reset_parameters(self):
         self.lin.reset_parameters()
 
-    def forward(self, timestamp: torch.Tensor):
+    def forward(self, timestamps: torch.Tensor):
         """
-        compute time encodings of time in timestamps
-        :param timestamps: Tensor, shape (batch_size, seq_len)
+        compute time encodings of time in timestampss
+        :param timestampss: Tensor, shape (batch_size, seq_len)
         :return:
         """
         # Tensor, shape (batch_size, seq_len, 1)
-        timestamp = timestamp.unsqueeze(-1)
+        timestamps = timestamps.unsqueeze(-1)
 
         # Tensor, shape (batch_size, seq_len, out_channels)
-        output = torch.cos(self.lin(timestamp))
+        output = torch.cos(self.lin(timestamps))
 
         return output
 
 
-class ScaledFixedCosTimeEncoder(nn.Module):
+class ScaledFixedCosTimeEncoder(nn.Module, TimeEncoder):
     """Fixed exponential periods but with learnable multipliers"""
 
     def __init__(self, out_channels: int):
@@ -149,16 +160,16 @@ class ScaledFixedCosTimeEncoder(nn.Module):
     def reset_parameters(self):
         self.lin.reset_parameters()
 
-    def forward(self, timestamps: torch.Tensor):
+    def forward(self, timestampss: torch.Tensor):
         """
-        compute time encodings of time in timestamps
-        :param timestamps: Tensor, shape (batch_size, seq_len)
+        compute time encodings of time in timestampss
+        :param timestampss: Tensor, shape (batch_size, seq_len)
         :return:
         """
         # Tensor, shape (batch_size, seq_len, 1)
-        timestamps = timestamps.unsqueeze(-1)
+        timestampss = timestampss.unsqueeze(-1)
 
-        output = torch.matmul(timestamps, self.lin.weight.t())
+        output = torch.matmul(timestampss, self.lin.weight.t())
         if output.shape[0] != 0:
             # TODO handle var shape
             output = output * self.frequencies
