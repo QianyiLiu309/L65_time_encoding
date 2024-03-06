@@ -34,7 +34,7 @@ def get_time_encoder(
     elif time_encoder == "learned_gaussian":
         return GaussianTimeEncoder(out_channels, mul=mul)
     elif time_encoder == "graph_mixer":
-        return FixedCosTimeEncoder(out_channels, parameter_requires_grad=False)
+        return FixedCosTimeEncoder(out_channels, mul=mul, parameter_requires_grad=False)
     elif time_encoder == "scaled_fixed":
         return ScaledFixedCosTimeEncoder(out_channels)
     elif time_encoder == "learned_cos_learned_multiplier":
@@ -119,7 +119,9 @@ class GaussianTimeEncoder(nn.Module, TimeEncoder):
 class FixedCosTimeEncoder(nn.Module, TimeEncoder):
     """Cosine time encoder with non-learnable exponential range of frequencies"""
 
-    def __init__(self, out_channels: int, parameter_requires_grad: bool = True):
+    def __init__(
+        self, out_channels: int, mul: float = 1.0, parameter_requires_grad: bool = True
+    ):
         """
         Time encoder.
         :param out_channels: int, dimension of time encodings
@@ -138,6 +140,7 @@ class FixedCosTimeEncoder(nn.Module, TimeEncoder):
             ).reshape(out_channels, -1)
         )
         self.lin.bias = Parameter(torch.zeros(out_channels))
+        self.mul = mul
 
         if not parameter_requires_grad:
             self.lin.weight.requires_grad = False
@@ -154,6 +157,7 @@ class FixedCosTimeEncoder(nn.Module, TimeEncoder):
         """
         # Tensor, shape (batch_size, seq_len, 1)
         timestamps = timestamps.unsqueeze(-1)
+        timestamps = timestamps * self.mul
 
         # Tensor, shape (batch_size, seq_len, out_channels)
         output = torch.cos(self.lin(timestamps))
@@ -195,8 +199,8 @@ class ScaledFixedCosTimeEncoder(nn.Module, TimeEncoder):
         # Tensor, shape (batch_size, seq_len, 1)
         timestamps = timestamps.unsqueeze(-1)
 
-        # multiplier = torch.exp(-self.lin.weight**2)
-        multiplier = self.lin.weight
+        multiplier = torch.exp(-self.lin.weight**2)
+        # multiplier = self.lin.weight
         output = torch.matmul(timestamps, multiplier.t())
         if output.shape[0] != 0:
             # TODO handle var shape
