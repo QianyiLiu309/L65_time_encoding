@@ -120,7 +120,7 @@ class FixedCosTimeEncoder(nn.Module, TimeEncoder):
     """Cosine time encoder with non-learnable exponential range of frequencies"""
 
     def __init__(
-        self, out_channels: int, mul: float = 1.0, parameter_requires_grad: bool = True
+        self, out_channels: int, mul: float = 1.0, parameter_requires_grad: bool = False
     ):
         """
         Time encoder.
@@ -199,8 +199,7 @@ class ScaledFixedCosTimeEncoder(nn.Module, TimeEncoder):
         # Tensor, shape (batch_size, seq_len, 1)
         timestamps = timestamps.unsqueeze(-1)
 
-        multiplier = torch.exp(-self.lin.weight**2)
-        # multiplier = self.lin.weight
+        multiplier = self.lin.weight
         output = torch.matmul(timestamps, multiplier.t())
         if output.shape[0] != 0:
             # TODO handle var shape
