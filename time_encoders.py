@@ -39,6 +39,12 @@ def get_time_encoder(
         return ScaledFixedCosTimeEncoder(out_channels)
     elif time_encoder == "learned_cos_learned_multiplier":
         return CosTimeEncoderWithLearnedMultiplier(out_channels, mul=mul)
+    elif time_encoder == "mlp2":
+        return MLPTimeEncoder(out_channels, mul=mul, depth=2)
+    elif time_encoder == "mlp3":
+        return MLPTimeEncoder(out_channels, mul=mul, depth=3)
+    elif time_encoder == "mlp4":
+        return MLPTimeEncoder(out_channels, mul=mul, depth=4)
     else:
         raise NotImplementedError(f"Unknown time encoder '{time_encoder}'")
 
@@ -58,6 +64,42 @@ class CosTimeEncoder(nn.Module, TimeEncoder):
     def forward(self, timestamps: Tensor) -> Tensor:
         timestamps = timestamps * self.mul
         return self.lin(timestamps.unsqueeze(-1)).cos()
+
+
+class MLPTimeEncoder(nn.Module, TimeEncoder):
+    """MLP with sinusoidal activation"""
+
+    # depth = number of linear layers total
+    def __init__(self, out_channels: int, mul: float = 1, depth: int = 2, hidden_size: int = None):
+        super().__init__()
+        self.out_channels = out_channels
+
+        if hidden_size is None:
+            hidden_size = out_channels * 4
+
+        layers = []
+        for i in range(depth):
+            in_ch = 1 if i == 0 else hidden_size
+            out_ch = hidden_size if i != depth-1 else out_channels
+            layers.append(Linear(in_ch, out_ch))
+
+        self.layers = nn.ModuleList(layers)
+
+        self.lin = layers[0]  # silly workaround
+
+        self.mul = mul
+
+    def reset_parameters(self):
+        for layer in self.layers:
+            layer.reset_parameters()
+
+    def forward(self, timestamps: Tensor) -> Tensor:
+        xs = timestamps.unsqueeze(-1) * self.mul
+        for i in range(len(self.layers) - 1):
+            xs = self.layers[i](xs)
+            xs = torch.cos(xs)
+        xs = self.layers[-1](xs)
+        return xs
 
 
 class CosTimeEncoderWithLearnedMultiplier(nn.Module, TimeEncoder):
