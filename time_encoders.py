@@ -66,6 +66,8 @@ def get_time_encoder(
         )
     elif time_encoder == "graph_mixer":
         return FixedCosTimeEncoder(out_channels, mul=mul, parameter_requires_grad=False)
+    elif time_encoder == "graph_mixer_learnable":
+        return FixedCosTimeEncoder(out_channels, mul=mul, parameter_requires_grad=True)
     elif time_encoder == "graph_mixer_exp":
         return GraphMixerTemperature(out_channels, mul=mul, per_channel=False)
     elif time_encoder == "graph_mixer_exp_pc":
