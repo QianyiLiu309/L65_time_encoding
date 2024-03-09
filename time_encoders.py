@@ -29,10 +29,16 @@ def get_time_encoder(
 ) -> TimeEncoder:
     if time_encoder == "learned_cos":
         return CosTimeEncoder(out_channels, mul=mul)
+    if time_encoder == "decay_amp":
+        return DecayCosTimeEncoder(out_channels, mul=mul, mode='amplitude', learn_power=False)
+    if time_encoder == "decay_freq":
+        return DecayCosTimeEncoder(out_channels, mul=mul, mode='frequency', learn_power=False)
     elif time_encoder == "learned_exp":
         return ExpTimeEncoder(out_channels, mul=mul)
     elif time_encoder == "learned_gaussian":
         return GaussianTimeEncoder(out_channels, mul=mul)
+    elif time_encoder == "fixed_gaussian":
+        return GaussianTimeEncoder(out_channels, mul=mul, graphmixer_freqs=True, learnable=False)
     elif time_encoder == "graph_mixer":
         return FixedCosTimeEncoder(out_channels, mul=mul, parameter_requires_grad=False)
     elif time_encoder == "scaled_fixed":
@@ -64,6 +70,33 @@ class CosTimeEncoder(nn.Module, TimeEncoder):
     def forward(self, timestamps: Tensor) -> Tensor:
         timestamps = timestamps * self.mul
         return self.lin(timestamps.unsqueeze(-1)).cos()
+
+
+class DecayCosTimeEncoder(nn.Module, TimeEncoder):
+    """Learnable cosine time encoder"""
+
+    # mode = 'amplitude' or 'frequency'
+    def __init__(self, out_channels: int, mul: float = 1, mode: str = 'amplitude', learn_power: bool = True):
+        super().__init__()
+        self.out_channels = out_channels
+        self.lin = Linear(1, out_channels)
+        self.mul = mul
+
+        self.mode = mode
+        self.power = nn.Parameter(torch.ones(1,) / 2, requires_grad=learn_power)
+
+    def reset_parameters(self):
+        self.lin.reset_parameters()
+        self.power.data[:] = 1
+
+    def forward(self, timestamps: Tensor) -> Tensor:
+        timestamps = timestamps.unsqueeze(-1) * self.mul
+        t_pow = timestamps ** self.power
+
+        if self.mode == 'amplitude':
+            return self.lin(timestamps).cos() / (t_pow + 1)
+        elif self.mode == 'frequency':
+            return self.lin(t_pow).cos()
 
 
 class MLPTimeEncoder(nn.Module, TimeEncoder):
@@ -144,11 +177,19 @@ class ExpTimeEncoder(nn.Module, TimeEncoder):
 class GaussianTimeEncoder(nn.Module, TimeEncoder):
     """Learnable Gaussian time encoder"""
 
-    def __init__(self, out_channels: int, mul: float = 1):
+    def __init__(self, out_channels: int, mul: float = 1, graphmixer_freqs: bool = False, learnable: bool = True):
         super().__init__()
         self.out_channels = out_channels
         self.lin = Linear(1, out_channels, bias=True)
         self.mul = mul
+
+        if graphmixer_freqs:
+            self.lin.weight = Parameter((torch.from_numpy(1 / 10 ** np.linspace(0, 9, out_channels, dtype=np.float32))).reshape(out_channels, -1))
+            self.lin.bias = Parameter(torch.zeros(out_channels))
+
+        if not learnable:
+            self.lin.weight.requires_grad = False
+            # self.lin.bias.requires_grad = False
 
     def reset_parameters(self):
         self.lin.reset_parameters()
