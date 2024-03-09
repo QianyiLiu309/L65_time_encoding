@@ -26,9 +26,9 @@ def get_time_encoder(
     if time_encoder == "learned_cos":
         return CosTimeEncoder(out_channels, mul=mul)
     if time_encoder == "decay_amp":
-        return DecayCosTimeEncoder(out_channels, mul=mul, mode='amplitude', learn_power=True, learn_freqs=True)
+        return DecayCosTimeEncoder(out_channels, mul=mul, mode='amplitude', learn_power=True, learn_freqs=True, graphmixer_freq_init=False)
     if time_encoder == "decay_amp_gm":
-        return DecayCosTimeEncoder(out_channels, mul=mul, mode='amplitude', learn_power=True, learn_freqs=False)
+        return DecayCosTimeEncoder(out_channels, mul=mul, mode='amplitude', learn_power=True, learn_freqs=False, graphmixer_freq_init=True)
     if time_encoder == "decay_freq":
         return DecayCosTimeEncoder(out_channels, mul=mul, mode='frequency', learn_power=True, learn_freqs=True)
     elif time_encoder == "learned_exp":
@@ -72,8 +72,6 @@ class CosTimeEncoder(nn.Module, TimeEncoder):
 
 
 class DecayCosTimeEncoder(nn.Module, TimeEncoder):
-    """Learnable cosine time encoder"""
-
     # mode = 'amplitude' or 'frequency'
     def __init__(self, out_channels: int, mul: float = 1, mode: str = 'amplitude', learn_power: bool = True,
                  graphmixer_freq_init: bool = True, learn_freqs: bool = False):
@@ -83,10 +81,12 @@ class DecayCosTimeEncoder(nn.Module, TimeEncoder):
         self.mul = mul
 
         if graphmixer_freq_init:
-            self.lin.weight = Parameter((torch.from_numpy(1 / 10 ** np.linspace(0, 9, out_channels, dtype=np.float32))).reshape(out_channels, -1))
+            self.lin.weight = Parameter((1 / 10 ** torch.linspace(0, 9, out_channels)).reshape(out_channels, -1))
+            self.lin.bias.data[:] = 0
 
         if not learn_freqs:
             self.lin.weight.requires_grad = False
+            self.lin.bias.requires_grad = False
 
         self.mode = mode
         self.power = nn.Parameter(torch.ones(1,) / 2, requires_grad=learn_power)
@@ -205,12 +205,12 @@ class GaussianTimeEncoder(nn.Module, TimeEncoder):
         self.mul = mul
 
         if graphmixer_freqs:
-            self.lin.weight = Parameter((torch.from_numpy(1 / 10 ** np.linspace(0, 9, out_channels, dtype=np.float32))).reshape(out_channels, -1))
+            self.lin.weight = Parameter(1 / 10 ** torch.linspace(0, 9, out_channels).reshape(out_channels, -1))
             self.lin.bias = Parameter(torch.zeros(out_channels))
 
         if not learnable:
             self.lin.weight.requires_grad = False
-            # self.lin.bias.requires_grad = False
+            self.lin.bias.requires_grad = False
 
     def forward(self, timestamps: Tensor) -> Tensor:
         timestamps = timestamps * self.mul
