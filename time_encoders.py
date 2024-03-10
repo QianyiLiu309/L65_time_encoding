@@ -20,9 +20,7 @@ class TimeEncoder(ABC):
         raise NotImplementedError
 
 
-def get_time_encoder(
-    time_encoder: str, out_channels: int, mul: float = 1
-) -> TimeEncoder:
+def get_time_encoder(time_encoder: str, out_channels: int, mul: float = 1) -> TimeEncoder:
     if time_encoder == "learned_cos":
         return CosTimeEncoder(out_channels, mul=mul)
     if time_encoder == "decay_amp":
@@ -39,6 +37,8 @@ def get_time_encoder(
         return GaussianTimeEncoder(out_channels, mul=mul, graphmixer_freqs=True, learnable=False)
     elif time_encoder == "graph_mixer":
         return FixedCosTimeEncoder(out_channels, mul=mul, parameter_requires_grad=False)
+    elif time_encoder == "fromdata":
+        return CustomFixedCosTimeEncoder(out_channels, mul=mul, parameter_requires_grad=False)
     elif time_encoder == "graph_mixer_exp":
         return GraphMixerTemperature(out_channels, mul=mul, per_channel=False)
     elif time_encoder == "graph_mixer_exp_pc":
@@ -206,11 +206,11 @@ class GaussianTimeEncoder(nn.Module, TimeEncoder):
 
         if graphmixer_freqs:
             self.lin.weight = Parameter(1 / 10 ** torch.linspace(0, 9, out_channels).reshape(out_channels, -1))
-            self.lin.bias = Parameter(torch.zeros(out_channels))
+            # self.lin.bias = Parameter(torch.zeros(out_channels))
 
         if not learnable:
             self.lin.weight.requires_grad = False
-            self.lin.bias.requires_grad = False
+            # self.lin.bias.requires_grad = False
 
     def forward(self, timestamps: Tensor) -> Tensor:
         timestamps = timestamps * self.mul
@@ -261,6 +261,38 @@ class FixedCosTimeEncoder(nn.Module, TimeEncoder):
         output = torch.cos(self.lin(timestamps))
 
         return output
+
+
+class CustomFixedCosTimeEncoder(nn.Module, TimeEncoder):
+    """Initialise frequencies from the dataset"""
+    def __init__(
+        self, out_channels: int, mul: float = 1.0, parameter_requires_grad: bool = False
+    ):
+        super().__init__()
+
+        self.out_channels = out_channels
+
+        dataset_name = "tgbl-wiki"  # todo; pass as argument in both codebases
+
+        freqs = np.load(f"../dataset_stats/{dataset_name}_gaps.npy")
+        gap = freqs.shape[0] // out_channels
+        sample = freqs[gap//2::gap][:out_channels]
+        print(f"Loaded frequencies sample from dataset {dataset_name}:\n{sample}")
+        sample[sample == 0] = 1  # prevent division by 0
+
+        # trainable parameters for time encoding
+        self.lin = Linear(1, out_channels)
+        self.lin.weight = Parameter(1 / torch.from_numpy(sample).reshape(out_channels, -1))
+        self.lin.bias = Parameter(torch.zeros(out_channels))
+        self.mul = mul
+
+        if not parameter_requires_grad:
+            self.lin.weight.requires_grad = False
+            self.lin.bias.requires_grad = False
+
+    def forward(self, timestamps: torch.Tensor):
+        timestamps = timestamps.unsqueeze(-1) * self.mul
+        return torch.cos(self.lin(timestamps))
 
 
 class ScaledFixedCosTimeEncoder(nn.Module, TimeEncoder):
