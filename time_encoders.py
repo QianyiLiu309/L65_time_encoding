@@ -124,16 +124,9 @@ class DecayCosTimeEncoder(nn.Module, TimeEncoder):
 
         if not learn_freqs:
             self.lin.weight.requires_grad = False
-            self.lin.bias.requires_grad = False
 
         self.mode = mode
-        self.power = nn.Parameter(
-            torch.ones(
-                1,
-            )
-            / 2,
-            requires_grad=learn_power,
-        )
+        self.power = nn.Parameter(torch.ones(1,) / 2, requires_grad=learn_power)
 
     def forward(self, timestamps: Tensor) -> Tensor:
         timestamps = timestamps.unsqueeze(-1) * self.mul
@@ -154,7 +147,6 @@ class GraphMixerTemperature(nn.Module, TimeEncoder):
         self.per_channel = per_channel
 
         if self.per_channel:
-            # data = torch.linspace(0, 9, self.out_channels, dtype=torch.float32)
             data = torch.ones(self.out_channels)
             self.multipliers = nn.Parameter(data=data, requires_grad=True)
         else:
