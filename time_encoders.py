@@ -20,7 +20,9 @@ class TimeEncoder(ABC):
         raise NotImplementedError
 
 
-def get_time_encoder(time_encoder: str, out_channels: int, mul: float = 1) -> TimeEncoder:
+def get_time_encoder(
+    time_encoder: str, out_channels: int, mul: float = 1
+) -> TimeEncoder:
     if time_encoder == "learned_cos":
         return CosTimeEncoder(out_channels, mul=mul)
     elif time_encoder == "decay_amp":
@@ -65,7 +67,13 @@ def get_time_encoder(time_encoder: str, out_channels: int, mul: float = 1) -> Ti
     elif time_encoder == "graph_mixer":
         return FixedCosTimeEncoder(out_channels, mul=mul, parameter_requires_grad=False)
     elif time_encoder == "fromdata":
-        return CustomFixedCosTimeEncoder(out_channels, mul=mul, parameter_requires_grad=False)
+        return CustomFixedCosTimeEncoder(
+            out_channels, mul=mul, parameter_requires_grad=False
+        )
+    elif time_encoder == "fromfft":
+        return CustomFixedCosTimeEncoder(
+            out_channels, mul=mul, parameter_requires_grad=False, from_fft=True
+        )
     elif time_encoder == "graph_mixer_learnable":
         return FixedCosTimeEncoder(out_channels, mul=mul, parameter_requires_grad=True)
     elif time_encoder == "graph_mixer_exp":
@@ -126,7 +134,13 @@ class DecayCosTimeEncoder(nn.Module, TimeEncoder):
             self.lin.weight.requires_grad = False
 
         self.mode = mode
-        self.power = nn.Parameter(torch.ones(1,) / 2, requires_grad=learn_power)
+        self.power = nn.Parameter(
+            torch.ones(
+                1,
+            )
+            / 2,
+            requires_grad=learn_power,
+        )
 
     def forward(self, timestamps: Tensor) -> Tensor:
         timestamps = timestamps.unsqueeze(-1) * self.mul
@@ -323,8 +337,13 @@ class FixedCosTimeEncoder(nn.Module, TimeEncoder):
 
 class CustomFixedCosTimeEncoder(nn.Module, TimeEncoder):
     """Initialise frequencies from the dataset"""
+
     def __init__(
-        self, out_channels: int, mul: float = 1.0, parameter_requires_grad: bool = False
+        self,
+        out_channels: int,
+        mul: float = 1.0,
+        parameter_requires_grad: bool = False,
+        from_fft: bool = False,
     ):
         super().__init__()
 
@@ -332,15 +351,25 @@ class CustomFixedCosTimeEncoder(nn.Module, TimeEncoder):
 
         dataset_name = "tgbl-wiki"  # todo; pass as argument in both codebases
 
-        freqs = np.load(f"../dataset_stats/{dataset_name}_gaps.npy")
-        gap = freqs.shape[0] // out_channels
-        sample = freqs[gap//2::gap][:out_channels]
-        print(f"Loaded frequencies sample from dataset {dataset_name}:\n{sample}")
-        sample[sample == 0] = 1  # prevent division by 0
-
-        # trainable parameters for time encoding
         self.lin = Linear(1, out_channels)
-        self.lin.weight = Parameter(1 / torch.from_numpy(sample).reshape(out_channels, -1))
+        if not from_fft:
+            freqs = np.load(f"../dataset_stats/{dataset_name}_gaps.npy")
+            gap = freqs.shape[0] // out_channels
+            sample = freqs[gap // 2 :: gap][:out_channels]
+            print(f"Loaded frequencies sample from dataset {dataset_name}:\n{sample}")
+            sample[sample == 0] = 1  # prevent division by 0
+
+            # trainable parameters for time encoding
+            self.lin.weight = Parameter(
+                1 / torch.from_numpy(sample).reshape(out_channels, -1)
+            )
+        else:
+            initial_weights = np.load(
+                f"../dataset_stats/{dataset_name}_frequencies_weight.npy"
+            )
+            self.lin.weight = Parameter(
+                torch.from_numpy(initial_weights).reshape(out_channels, -1)
+            )
         self.lin.bias = Parameter(torch.zeros(out_channels))
         self.mul = mul
 
