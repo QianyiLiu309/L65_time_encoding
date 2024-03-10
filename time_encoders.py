@@ -64,6 +64,14 @@ def get_time_encoder(
         return GaussianTimeEncoder(
             out_channels, mul=mul, graphmixer_freqs=True, learnable=False
         )
+    elif time_encoder == "fixed_gaussian_learn2scale":
+        return GaussianTimeEncoder(
+            out_channels,
+            mul=mul,
+            graphmixer_freqs=True,
+            learnable=False,
+            learn2scale=True,
+        )
     elif time_encoder == "graph_mixer":
         return FixedCosTimeEncoder(out_channels, mul=mul, parameter_requires_grad=False)
     elif time_encoder == "fromdata":
@@ -268,11 +276,13 @@ class GaussianTimeEncoder(nn.Module, TimeEncoder):
         mul: float = 1,
         graphmixer_freqs: bool = False,
         learnable: bool = True,
+        learn2scale: bool = False,
     ):
         super().__init__()
         self.out_channels = out_channels
         self.lin = Linear(1, out_channels, bias=True)
         self.mul = mul
+        self.learn2scale = learn2scale
 
         if graphmixer_freqs:
             self.lin.weight = Parameter(
@@ -284,9 +294,22 @@ class GaussianTimeEncoder(nn.Module, TimeEncoder):
             self.lin.weight.requires_grad = False
             # self.lin.bias.requires_grad = False
 
+        if learn2scale:
+            self.learned_scale_lin = Linear(1, out_channels, bias=False)
+
     def forward(self, timestamps: Tensor) -> Tensor:
-        timestamps = timestamps * self.mul
-        return torch.exp(-self.lin(timestamps.unsqueeze(-1)) ** 2)
+        if not self.learn2scale:
+            timestamps = timestamps * self.mul
+            return torch.exp(-self.lin(timestamps.unsqueeze(-1)) ** 2)
+        else:
+            timestamps = timestamps.unsqueeze(-1)
+
+            multiplier = self.learned_scale_lin.weight
+            output = torch.matmul(timestamps, multiplier.t())
+            if output.shape[0] != 0:
+                output = output * self.lin.weight.squeeze(-1).unsqueeze(0)
+            output = output + self.lin.bias
+            return torch.exp(-(output**2))
 
 
 class FixedCosTimeEncoder(nn.Module, TimeEncoder):
@@ -419,6 +442,7 @@ class ScaledFixedCosTimeEncoder(nn.Module, TimeEncoder):
             # TODO handle var shape
             output = output * self.frequencies
         output = output + self.lin.bias
+        print(self.lin.bias.shape)
         output = torch.cos(output)
 
         return output
