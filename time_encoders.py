@@ -446,7 +446,6 @@ class ScaledFixedCosTimeEncoder(nn.Module, TimeEncoder):
             # TODO handle var shape
             output = output * self.frequencies
         output = output + self.lin.bias
-        print(self.lin.bias.shape)
         output = torch.cos(output)
 
         return output
