@@ -59,7 +59,7 @@ def get_time_encoder(
     elif time_encoder == "learned_exp":
         return ExpTimeEncoder(out_channels, mul=mul)
     elif time_encoder == "learned_gaussian":
-        return GaussianTimeEncoder(out_channels, mul=mul)
+        return GaussianTimeEncoder(out_channels, mul=mul, graphmixer_freqs=True)
     elif time_encoder == "fixed_gaussian":
         return GaussianTimeEncoder(
             out_channels, mul=mul, graphmixer_freqs=True, learnable=False
@@ -97,11 +97,15 @@ def get_time_encoder(
 class CosTimeEncoder(nn.Module, TimeEncoder):
     """Learnable cosine time encoder"""
 
-    def __init__(self, out_channels: int, mul: float = 1):
+    def __init__(self, out_channels: int, mul: float = 1, learn_mul: bool = False):
         super().__init__()
         self.out_channels = out_channels
         self.lin = Linear(1, out_channels)
-        self.mul = mul
+
+        if learn_mul:
+            self.mul = nn.Parameter(torch.tensor(mul), requires_grad=True)
+        else:
+            self.mul = mul
 
     def forward(self, timestamps: Tensor) -> Tensor:
         timestamps = timestamps * self.mul
@@ -366,9 +370,9 @@ class CustomFixedCosTimeEncoder(nn.Module, TimeEncoder):
         else:
             initial_weights = np.load(
                 f"../dataset_stats/{dataset_name}_frequencies_weight.npy"
-            )
+            )[:out_channels]
             self.lin.weight = Parameter(
-                torch.from_numpy(initial_weights).reshape(out_channels, -1)
+                torch.from_numpy(initial_weights).reshape(out_channels, -1).float()
             )
         self.lin.bias = Parameter(torch.zeros(out_channels))
         self.mul = mul
