@@ -25,6 +25,8 @@ def get_time_encoder(
 ) -> TimeEncoder:
     if time_encoder == "learned_cos":
         return CosTimeEncoder(out_channels, mul=mul)
+    if time_encoder == "learned_cos_norm":
+        return CosTimeEncoder(out_channels, mul=mul, norm=True)
     elif time_encoder == "decay_amp":
         return DecayCosTimeEncoder(
             out_channels,
@@ -90,6 +92,8 @@ def get_time_encoder(
         return GraphMixerTemperature(out_channels, mul=mul, per_channel=True)
     elif time_encoder == "scaled_fixed":
         return ScaledFixedCosTimeEncoder(out_channels)
+    elif time_encoder == "scaled_fixed_id":
+        return ScaledFixedCosTimeEncoder(out_channels, identity_init=True)
     elif time_encoder == "learned_cos_learned_multiplier":
         return CosTimeEncoderWithLearnedMultiplier(out_channels, mul=mul)
     elif time_encoder == "mlp2":
@@ -105,10 +109,12 @@ def get_time_encoder(
 class CosTimeEncoder(nn.Module, TimeEncoder):
     """Learnable cosine time encoder"""
 
-    def __init__(self, out_channels: int, mul: float = 1, learn_mul: bool = False):
+    def __init__(self, out_channels: int, mul: float = 1, learn_mul: bool = False, norm: bool = False):
         super().__init__()
         self.out_channels = out_channels
         self.lin = Linear(1, out_channels)
+
+        self.norm = norm
 
         if learn_mul:
             self.mul = nn.Parameter(torch.tensor(mul), requires_grad=True)
@@ -117,7 +123,10 @@ class CosTimeEncoder(nn.Module, TimeEncoder):
 
     def forward(self, timestamps: Tensor) -> Tensor:
         timestamps = timestamps * self.mul
-        return self.lin(timestamps.unsqueeze(-1)).cos()
+        out = self.lin(timestamps.unsqueeze(-1)).cos()
+        if self.norm:
+            out = out / self.out_channels ** 0.5
+        return out
 
 
 class DecayCosTimeEncoder(nn.Module, TimeEncoder):
@@ -412,7 +421,7 @@ class CustomFixedCosTimeEncoder(nn.Module, TimeEncoder):
 class ScaledFixedCosTimeEncoder(nn.Module, TimeEncoder):
     """Fixed exponential periods but with learnable multipliers"""
 
-    def __init__(self, out_channels: int):
+    def __init__(self, out_channels: int, identity_init: bool = False):
         """
         Time encoder.
         :param out_channels: int, dimension of time encodings
@@ -431,6 +440,10 @@ class ScaledFixedCosTimeEncoder(nn.Module, TimeEncoder):
 
         self.lin = Linear(1, out_channels, bias=True)
 
+        if identity_init:
+            self.lin.weight.data[:] = 1
+            self.lin.bias.data[:] = 0
+
     def forward(self, timestamps: torch.Tensor):
         """
         compute time encodings of time in timestamps
@@ -446,7 +459,6 @@ class ScaledFixedCosTimeEncoder(nn.Module, TimeEncoder):
             # TODO handle var shape
             output = output * self.frequencies
         output = output + self.lin.bias
-        print(self.lin.bias.shape)
         output = torch.cos(output)
 
         return output
