@@ -110,7 +110,8 @@ def total_variation_per_unit_time(
         #  inds+1 = the first indices where the change has taken effect
         # We therefore discount the (inds -> inds+1) edges
         inds = np.searchsorted(pred_timestamps, ts, side="right") - 1
-        inds = inds[inds < preds.shape[0] - 1]
+        inds = np.unique(inds)  # only discount any step at most once
+        inds = inds[inds < preds.shape[0] - 1]  # there is no step following the final timestep
         diffs -= np.sum(
             np.abs(preds[inds + 1] - preds[inds])
         )  # discount all inds->inds+1 probability jumps
